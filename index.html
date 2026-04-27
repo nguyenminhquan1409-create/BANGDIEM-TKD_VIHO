@@ -38,14 +38,12 @@
         #winner-banner h1 { font-size: 10vw; margin: 0; font-weight: 900; color: white; }
         #winner-banner p { font-size: 2.5vw; margin: 0; font-weight: bold; letter-spacing: 1.5vw; color: var(--gold); }
 
-        /* KHUNG CHỌN TRONG SUỐT, NHỎ GỌN GIỮA MÀN HÌNH */
         .tie-selection-box { 
             position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             display: none; flex-direction: column; align-items: center; gap: 10px; z-index: 6000;
             width: 19vw; background: transparent; border: none;
         }
         
-        /* NHÃN HÒA TUYỆT ĐỐI KHUNG TRẮNG */
         .tie-label-tag {
             background: white; color: black; padding: 4px 12px;
             font-size: 1.1vw; font-weight: 900; border-radius: 4px;
@@ -327,6 +325,16 @@
         const matchRef = db.ref('match');
         const hitsRef = db.ref('hits');
 
+        // --- ÂM THANH KẾT THÚC (Còi Air Horn mạnh mẽ) ---
+        const endSound = new Audio("https://actions.google.com/sounds/v1/transportation/truck_horn.ogg");
+
+        // --- TỰ ĐỘNG DỌN DẸP KHI KHỞI TẠO VÀ NGẮT KẾT NỐI ---
+        db.ref('referee_passwords').set({ R1: "", R2: "", R3: "" });
+        db.ref('referee_status').remove();
+        db.ref('referee_passwords').onDisconnect().remove();
+        db.ref('referee_status').onDisconnect().remove();
+        // --------------------------------------------------
+
         let currentData = { bS: 0, rS: 0, bG: 0, rG: 0, bW: 0, rW: 0, round: 1, time: 120, run: false, isRest: false, rName: "HONG", bName: "CHUNG", rLogs: [], bLogs: [], gapEnabled: false, winnerDeclared: false, maxGj: 0, maxPts: 0, oneRefMode: false, matchNum: 1, weightNum: "50", weightSign: "-", r6:0, r4:0, r3:0, r2:0, r1:0, b6:0, b4:0, b3:0, b2:0, b1:0 };
         let lastScores = { bS: 0, rS: 0 };
         let timerInterval = null;
@@ -370,7 +378,6 @@
                 else timerDisplay.classList.remove('timer-paused');
             }
 
-            // RESET GIAO DIỆN
             if (!data.winnerDeclared) {
                 document.getElementById('winner-banner').style.display = 'none';
                 document.getElementById('ptg-display').style.display = 'none';
@@ -434,6 +441,9 @@
             if (currentData.winnerDeclared) return;
             matchRef.update({ run: false, time: 0 });
 
+            // PHÁT ÂM THANH CÒI KHI HẾT GIỜ (CHỈ 1 LẦN)
+            endSound.play().catch(e => console.log("Yêu cầu nhấn chuột để phát âm thanh"));
+
             if (currentData.rS > currentData.bS) {
                 celebrateWinner('red', 'red-box');
             } else if (currentData.bS > currentData.rS) {
@@ -443,7 +453,6 @@
                 if (winSide) {
                     celebrateWinner(winSide, winSide === 'red' ? 'red-box' : 'blue-box');
                 } else {
-                    // HIỆN KHUNG CHỌN TRONG SUỐT
                     document.getElementById('tie-selection-ui').style.display = 'flex';
                 }
             }
