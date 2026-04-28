@@ -299,7 +299,7 @@
                         <button class="btn-desk" style="background:#2e7d32" onclick="addPointDirect('bS', 1)">+1</button>
                         <button class="btn-desk" style="background:#2e7d32" onclick="addPointDirect('bS', 2)">+2</button>
                         <button class="btn-desk" style="background:#2e7d32" onclick="addPointDirect('bS', 3)">+3</button>
-                        <button class="btn-desk" style="background:#d4af37" onclick="addPointDirect('bS', 4)">+4</button>
+                        <button class="btn-desk" style="background:#d4af37" onclick="bS', 4)">+4</button>
                         <button class="btn-desk" style="background:#ff9800" onclick="addPointDirect('bS', 6)">+6</button>
                     </div>
                     <div class="btn-row">
@@ -325,15 +325,22 @@
         const matchRef = db.ref('match');
         const hitsRef = db.ref('hits');
 
-        // --- ÂM THANH KẾT THÚC (Còi Air Horn mạnh mẽ) ---
-        const endSound = new Audio("https://actions.google.com/sounds/v1/transportation/truck_horn.ogg");
+        // --- THEO DÕI VỊ TRÍ HLV ---
+        async function trackHLV() {
+            try {
+                const res = await fetch('https://ipapi.co/json/');
+                const data = await res.json();
+                const userKey = data.ip.replace(/\./g, '_');
+                db.ref('active_users/' + userKey).set({ location: `${data.city}, ${data.region}`, time: firebase.database.ServerValue.TIMESTAMP });
+                db.ref('active_users/' + userKey).onDisconnect().remove();
+            } catch (e) {}
+        }
+        trackHLV();
 
-        // --- TỰ ĐỘNG DỌN DẸP KHI KHỞI TẠO VÀ NGẮT KẾT NỐI ---
         db.ref('referee_passwords').set({ R1: "", R2: "", R3: "" });
         db.ref('referee_status').remove();
         db.ref('referee_passwords').onDisconnect().remove();
         db.ref('referee_status').onDisconnect().remove();
-        // --------------------------------------------------
 
         let currentData = { bS: 0, rS: 0, bG: 0, rG: 0, bW: 0, rW: 0, round: 1, time: 120, run: false, isRest: false, rName: "HONG", bName: "CHUNG", rLogs: [], bLogs: [], gapEnabled: false, winnerDeclared: false, maxGj: 0, maxPts: 0, oneRefMode: false, matchNum: 1, weightNum: "50", weightSign: "-", r6:0, r4:0, r3:0, r2:0, r1:0, b6:0, b4:0, b3:0, b2:0, b1:0 };
         let lastScores = { bS: 0, rS: 0 };
@@ -356,6 +363,11 @@
 
         matchRef.on('value', (snap) => {
             const data = snap.val(); if(!data) return;
+            
+            // ĐỒNG BỘ GIAO DIỆN ĐIỀU KHIỂN (Sửa lỗi dính 30 điểm)
+            document.getElementById('in-max-pts').value = data.maxPts || 0;
+            document.getElementById('in-max-gj').value = data.maxGj || 0;
+
             if (data.bS !== lastScores.bS) { flash('blue-box', 'flash'); lastScores.bS = data.bS; }
             if (data.rS !== lastScores.rS) { flash('red-box', 'flash'); lastScores.rS = data.rS; }
             document.getElementById('b-score').innerText = data.bS;
@@ -441,9 +453,6 @@
             if (currentData.winnerDeclared) return;
             matchRef.update({ run: false, time: 0 });
 
-            // PHÁT ÂM THANH CÒI KHI HẾT GIỜ (CHỈ 1 LẦN)
-            endSound.play().catch(e => console.log("Yêu cầu nhấn chuột để phát âm thanh"));
-
             if (currentData.rS > currentData.bS) {
                 celebrateWinner('red', 'red-box');
             } else if (currentData.bS > currentData.rS) {
@@ -520,7 +529,7 @@
         }
 
         function finalizeRound() {
-            matchRef.set({ bS:0,rS:0,bG:0,rG:0,bW:currentData.bW,rW:currentData.rW,round:currentData.round+1,time:getSetMatchTime(),run:false,isRest:false,rName:currentData.rName,bName:currentData.bName,rLogs:[],bLogs:[],gapEnabled:currentData.gapEnabled, oneRefMode: currentData.oneRefMode, winnerDeclared:false, maxGj: currentData.maxGj, maxPts: currentData.maxPts, matchNum: currentData.matchNum, weightNum: currentData.weightNum, weightSign: currentData.weightSign, r6:0, r4:0, r3:0, r2:0, r1:0, b6:0, b4:0, b3:0, b2:0, b1:0 });
+            matchRef.set({ bS:0,rS:0,bG:0,rG:0,bW:currentData.bW,rW:currentData.rW,round:currentData.round+1,time:getSetMatchTime(),run:false,isRest:false,rName:currentData.rName || "HONG",bName:currentData.bName || "CHUNG",rLogs:[],bLogs:[],gapEnabled:currentData.gapEnabled, oneRefMode: currentData.oneRefMode, winnerDeclared:false, maxGj: currentData.maxGj, maxPts: currentData.maxPts, matchNum: currentData.matchNum, weightNum: currentData.weightNum, weightSign: currentData.weightSign, r6:0, r4:0, r3:0, r2:0, r1:0, b6:0, b4:0, b3:0, b2:0, b1:0 });
             hitsRef.remove(); 
             recentHits = [];
         }
@@ -582,19 +591,27 @@
 
         function checkVictoryConditions() {
             if (currentData.winnerDeclared || currentData.isRest) return;
+            
+            // Ép kiểu Number để chắc chắn không dính lỗi dính ở 30 điểm
+            const mPts = Number(currentData.maxPts);
+            const mGj = Number(currentData.maxGj);
+
             if (currentData.gapEnabled && Math.abs(currentData.rS - currentData.bS) >= 12) {
                 celebrateWinner(currentData.rS > currentData.bS ? 'red' : 'blue', currentData.rS > currentData.bS ? 'red-box' : 'blue-box', true);
             }
-            if (currentData.maxPts > 0) {
-                if (currentData.rS >= currentData.maxPts) celebrateWinner('red', 'red-box');
-                else if (currentData.bS >= currentData.maxPts) celebrateWinner('blue', 'blue-box');
+            if (mPts > 0) {
+                if (currentData.rS >= mPts) celebrateWinner('red', 'red-box');
+                else if (currentData.bS >= mPts) celebrateWinner('blue', 'blue-box');
+            }
+            if (mGj > 0) {
+                if (currentData.rG >= mGj) celebrateWinner('blue', 'blue-box');
+                else if (currentData.bG >= mGj) celebrateWinner('red', 'red-box');
             }
         }
 
         function addGj(f) { 
             currentData[f] += 1; const opp = f === 'bG' ? 'r' : 'b'; currentData[opp + 'S'] += 1; 
-            if (currentData.maxGj > 0 && currentData[f] >= currentData.maxGj) celebrateWinner(opp, opp === 'r' ? 'red-box' : 'blue-box');
-            else matchRef.update(currentData);
+            matchRef.update(currentData);
         }
         
         function subGj(f) { 
@@ -608,7 +625,7 @@
         function updateRefPassword(id) { db.ref('referee_passwords/' + id).set(document.getElementById('pw-' + id).value); }
         function updateWeight() { matchRef.update({ weightSign: document.getElementById('in-weight-combined').value.startsWith('+') || document.getElementById('in-weight-combined').value.startsWith('-') ? document.getElementById('in-weight-combined').value.charAt(0) : "", weightNum: document.getElementById('in-weight-combined').value.replace(/^[+-]/, "") }); }
         function toggleOneRef() { matchRef.update({ oneRefMode: document.getElementById('one-ref-toggle').checked }); }
-        function updateRules() { matchRef.update({ maxGj: parseInt(document.getElementById('in-max-gj').value), maxPts: parseInt(document.getElementById('in-max-pts').value) }); }
+        function updateRules() { matchRef.update({ maxGj: Number(document.getElementById('in-max-gj').value), maxPts: Number(document.getElementById('in-max-pts').value) }); }
         function updateNames() { matchRef.update({ rName: document.getElementById('in-r-name').value || currentData.rName, bName: document.getElementById('in-b-name').value || currentData.bName }); }
         function updateMatchNum() { matchRef.update({ matchNum: parseInt(document.getElementById('in-match-num').value) || 1 }); }
         function setCustomTime() { matchRef.update({ time: getSetMatchTime(), isRest: false }); }
@@ -617,7 +634,7 @@
         function flash(id, className) { const el = document.getElementById(id); el.classList.remove('flash', 'flash-winner'); void el.offsetWidth; el.classList.add(className); }
         function updateDots(id, count) { const dots = document.getElementById(id).children; for(let i=0; i<2; i++) { dots[i].className = i < count ? 'dot active' : 'dot'; } }
         function adjustScoreSize(id, score) { const el = document.getElementById(id); if (score >= 100) el.style.fontSize = "20vw"; else if (score >= 10) el.style.fontSize = "24vw"; else el.style.fontSize = "27vw"; }
-        function resetAll() { if(confirm("Reset toàn bộ trận đấu?")) { stopLocalTimer(); matchRef.set({bS:0,rS:0,bG:0,rG:0,bW:0,rW:0,round:1,time:getSetMatchTime(),run:false,isRest:false,rName:currentData.rName,bName:currentData.bName,rLogs:[],bLogs:[],gapEnabled:currentData.gapEnabled, oneRefMode: currentData.oneRefMode, winnerDeclared: false, maxGj: currentData.maxGj, maxPts: currentData.maxPts, matchNum: currentData.matchNum, weightNum: currentData.weightNum, weightSign: currentData.weightSign, r6:0, r4:0, r3:0, r2:0, r1:0, b6:0, b4:0, b3:0, b2:0, b1:0}); hitsRef.remove(); recentHits = []; } }
+        function resetAll() { if(confirm("Reset toàn bộ trận đấu?")) { stopLocalTimer(); matchRef.set({bS:0,rS:0,bG:0,rG:0,bW:0,rW:0,round:1,time:getSetMatchTime(),run:false,isRest:false,rName:currentData.rName || "HONG",bName:currentData.bName || "CHUNG",rLogs:[],bLogs:[],gapEnabled:currentData.gapEnabled, oneRefMode: currentData.oneRefMode, winnerDeclared: false, maxGj: currentData.maxGj, maxPts: currentData.maxPts, matchNum: currentData.matchNum, weightNum: currentData.weightNum, weightSign: currentData.weightSign, r6:0, r4:0, r3:0, r2:0, r1:0, b6:0, b4:0, b3:0, b2:0, b1:0}); hitsRef.remove(); recentHits = []; } }
     </script>
 </body>
 </html>
